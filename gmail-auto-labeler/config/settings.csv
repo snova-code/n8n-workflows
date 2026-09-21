@@ -1,0 +1,6 @@
+key,value,note
+alert_email,you@example.com,Where sync alerts and the daily summary are sent
+processed_label,n8n-p,Hidden label marking handled emails. Change only if you also rename it in Gmail
+max_labels,0,Max AI-chosen labels per email (0 = no limit). Rule labels are not counted
+ignore_labels,,"Comma-separated Gmail labels you keep on purpose (no ""unused label"" alert)"
+apply_parents,FALSE,"TRUE = when adding Dev/GitHub/PRs, also add Dev and Dev/GitHub, so opening a parent label in Gmail shows everything below it"

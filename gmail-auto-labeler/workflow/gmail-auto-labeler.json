@@ -1,0 +1,1150 @@
+{
+  "name": "Gmail Auto-Labeler",
+  "nodes": [
+    {
+      "id": "e24d580a-6fdb-4935-a2a7-14097f20e465",
+      "name": "Gmail Trigger",
+      "type": "n8n-nodes-base.gmailTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 5,
+              "unit": "minutes"
+            }
+          ]
+        },
+        "simple": false,
+        "filters": {
+          "q": "in:inbox -subject:\"n8n labeler\" -label:n8n-p"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "id": "b35e17fb-7bd3-437b-99c3-51e79235ea8d",
+      "name": "Manual Trigger (backlog)",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -220,
+        200
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "49d8ff97-58df-432c-ad19-bfe5445299ad",
+      "name": "Get Inbox Backlog",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "operation": "getAll",
+        "limit": 50,
+        "simple": false,
+        "filters": {
+          "q": "in:inbox -subject:\"n8n labeler\" -label:n8n-p"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "id": "f747ca40-48b1-40da-9763-129c8c33daab",
+      "name": "Daily Summary Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        420
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 20
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "2f9d284c-20e5-4482-befc-a60339bf4690",
+      "name": "Emails",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [
+        220,
+        100
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "3e9982fb-8d9a-429f-8191-db7a3722b9a8",
+      "name": "Sheet URL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        440,
+        200
+      ],
+      "parameters": {
+        "jsCode": "// ============================================================\n//  PASTE YOUR GOOGLE SHEET LINK BELOW (the whole browser URL)\n// ============================================================\nconst SHEET_URL = 'PASTE_YOUR_GOOGLE_SHEET_URL_HERE';\n// ------------------------------------------------------------\n\n// Works out which trigger started this run (labeling or daily summary)\nlet job = 'label';\ntry { if ($('Daily Summary Trigger').first()) job = 'summary'; } catch (e) {}\n\nif (!SHEET_URL.startsWith('https://docs.google.com/spreadsheets/')) {\n  throw new Error('Sheet URL node: paste your Google Sheet link into SHEET_URL first.');\n}\nreturn [{ json: { url: SHEET_URL, job } }];\n"
+      }
+    },
+    {
+      "id": "b1df3d9e-81e6-433b-bddc-fadd5d3fb68b",
+      "name": "Read Settings",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        660,
+        200
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Sheet URL').first().json.url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Settings"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "dbc72e95-773b-460f-9a48-90c876a63f5b",
+      "name": "Which Job?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        880,
+        200
+      ],
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $('Sheet URL').first().json.job === 'summary' ? 1 : 0 }}"
+      }
+    },
+    {
+      "id": "a40fc73b-5b0e-4f81-9aae-d9cb158af0cd",
+      "name": "Read Categories",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1100,
+        0
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Sheet URL').first().json.url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Categories"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "93f9429a-51c3-442b-a278-660c27318a37",
+      "name": "Read Rules",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        0
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Sheet URL').first().json.url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Rules"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "b6a045d0-48ea-4cd4-a094-436533eb7c84",
+      "name": "Build Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Turns the Settings, Categories and Rules tabs into one config object.\n// Also collects problems in the sheet (reported by Sync Report).\nconst norm = s => String(s ?? '').trim().toLowerCase();\nconst yes = v => ['true', 'yes', 'y', '1', 'x', '\u2713'].includes(norm(v));\n// 'Dev / GitHub ' -> 'Dev/GitHub' (same form Gmail uses for nested labels)\nconst cleanPath = s => String(s ?? '').split('/').map(p => p.trim().replace(/\\s+/g, ' ')).filter(Boolean).join('/');\nconst rows = name => $(name).all().map(i => i.json).filter(r => Object.keys(r).length > 0);\nconst problems = [];\n\n// ---- Settings (key | value)\nconst S = {};\nfor (const r of rows('Read Settings')) if (r.key) S[norm(r.key)] = String(r.value ?? '').trim();\nconst alertEmail = S.alert_email || '';\nconst processedLabel = cleanPath(S.processed_label) || 'n8n-p';\nconst maxLabels = Number(S.max_labels) || 0;\nconst ignoreLabels = (S.ignore_labels || '').split(',').map(cleanPath).filter(Boolean);\nconst applyParents = yes(S.apply_parents);   // also add 'Dev' when adding 'Dev/GitHub'\nif (!alertEmail) problems.push('Settings: alert_email is empty');\n\n// ---- Categories (active | label | description | kind)\nconst RESERVED = ['inbox', 'spam', 'trash', 'unread', 'starred', 'important', 'sent', 'draft', 'chat'];\nconst categories = [], actions = [];\nrows('Read Categories').forEach((r, i) => {\n  const rowNo = i + 2;\n  if (!yes(r.active)) return;\n  const label = cleanPath(r.label);\n  const kind = norm(r.kind || 'label');\n  if (!label) { problems.push(`Categories row ${rowNo}: label is empty`); return; }\n  if (kind === 'action') {\n    if (!['starred', 'important'].includes(norm(label))) { problems.push(`Categories row ${rowNo}: action \"${label}\" not allowed (use STARRED or IMPORTANT)`); return; }\n    actions.push({ label: label.toUpperCase(), description: String(r.description ?? '') });\n    return;\n  }\n  if (RESERVED.includes(norm(label))) { problems.push(`Categories row ${rowNo}: \"${label}\" is a built-in Gmail name; set kind = action or rename`); return; }\n  if (!String(r.description ?? '').trim()) problems.push(`Categories row ${rowNo}: \"${label}\" has no description (AI accuracy will suffer)`);\n  categories.push({ label, description: String(r.description ?? '') });\n});\n\n// ---- Rules (active | field | contains | labels | skip_ai | note)\nconst rules = [];\nrows('Read Rules').forEach((r, i) => {\n  const rowNo = i + 2;\n  if (!yes(r.active)) return;\n  const field = norm(r.field || 'from');\n  const contains = String(r.contains ?? '').trim();\n  const labels = String(r.labels ?? '').split(',').map(cleanPath).filter(Boolean)\n    .map(l => (['starred', 'important'].includes(norm(l)) ? l.toUpperCase() : l));\n  if (!['from', 'subject', 'any'].includes(field)) { problems.push(`Rules row ${rowNo}: field must be from, subject or any (got \"${r.field}\")`); return; }\n  if (!contains) { problems.push(`Rules row ${rowNo}: \"contains\" is empty`); return; }\n  if (labels.length === 0) { problems.push(`Rules row ${rowNo}: \"labels\" is empty`); return; }\n  const bad = labels.filter(l => RESERVED.includes(norm(l)) && !['starred', 'important'].includes(norm(l)));\n  if (bad.length) { problems.push(`Rules row ${rowNo}: not allowed: ${bad.join(', ')}`); return; }\n  rules.push({ field, contains, labels, skipAi: r.skip_ai === undefined || String(r.skip_ai).trim() === '' ? true : yes(r.skip_ai) });\n});\n\nreturn [{ json: { alertEmail, processedLabel, maxLabels, ignoreLabels, applyParents, categories, actions, rules, problems } }];\n"
+      }
+    },
+    {
+      "id": "16b7a5a1-fe12-4e07-ab4a-96720894a1a2",
+      "name": "Get Gmail Labels",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        0
+      ],
+      "parameters": {
+        "resource": "label",
+        "operation": "getAll",
+        "returnAll": true
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "id": "ae7227c7-7703-4767-be72-32fa8f187a76",
+      "name": "Plan Label Sync",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1980,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Lists labels that must exist in Gmail (categories + rule labels + hidden marker).\n// Parents of nested labels (e.g. \"Dev\" for \"Dev/GitHub\") are created first.\nconst cfg = $('Build Config').first().json;\nconst norm = s => String(s || '').trim().toLowerCase();\nconst have = new Set($input.all().map(i => norm(i.json.name)));\nconst SYSTEM = ['starred', 'important'];\n\nconst wanted = new Set();\ncfg.categories.forEach(c => wanted.add(c.label));\ncfg.rules.forEach(r => r.labels.forEach(l => { if (!SYSTEM.includes(norm(l))) wanted.add(l); }));\n\nconst withParents = new Map();\nfor (const name of wanted) {\n  const parts = name.split('/').map(s => s.trim()).filter(Boolean);\n  for (let i = 1; i <= parts.length; i++) {\n    const n = parts.slice(0, i).join('/');\n    if (!withParents.has(norm(n))) withParents.set(norm(n), n);\n  }\n}\nconst toCreate = [...withParents.values()]\n  .filter(n => !have.has(norm(n)))\n  .sort((a, b) => a.split('/').length - b.split('/').length)\n  .map(name => ({ json: { action: 'create', name, hidden: false } }));\n\nif (cfg.processedLabel && !have.has(norm(cfg.processedLabel)))\n  toCreate.push({ json: { action: 'create', name: cfg.processedLabel, hidden: true } });\n\nreturn toCreate.length ? toCreate : [{ json: { action: 'skip' } }];\n"
+      }
+    },
+    {
+      "id": "e5ae2c39-7053-4583-b90e-b3abd5ec436c",
+      "name": "Create or Skip?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        2200,
+        0
+      ],
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $json.action === 'create' ? 0 : 1 }}"
+      }
+    },
+    {
+      "id": "a42c0b76-5e0e-401c-b72b-d4d970835072",
+      "name": "Create Missing Label",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2420,
+        -120
+      ],
+      "parameters": {
+        "resource": "label",
+        "operation": "create",
+        "name": "={{ $json.name }}",
+        "options": {
+          "labelListVisibility": "={{ $json.hidden ? 'labelHide' : 'labelShow' }}",
+          "messageListVisibility": "={{ $json.hidden ? 'hide' : 'show' }}"
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "a9235c80-369b-4a2f-bf3b-60cb866ba14e",
+      "name": "Get Labels After Sync",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        2640,
+        0
+      ],
+      "parameters": {
+        "resource": "label",
+        "operation": "getAll",
+        "returnAll": true
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "734a6dcb-a055-43b1-9227-1d0652789a46",
+      "name": "Sync Report",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        -300
+      ],
+      "parameters": {
+        "jsCode": "// After sync: instant alert email for sync/config problems + rows for the Errors tab.\n// Outputs: items with alertTo  -> Send Alert (Email)\n//          items with stage    -> Append Errors\nconst cfg = $('Build Config').first().json;\nconst norm = s => String(s || '').trim().toLowerCase();\nconst labels = $input.all().map(i => i.json);\nconst have = new Set(labels.map(l => norm(l.name)));\nconst now = new Date().toISOString();\n\nconst planned = $('Plan Label Sync').all().map(i => i.json).filter(j => j.action === 'create');\nconst created = planned.filter(j => !j.hidden && have.has(norm(j.name))).map(j => j.name);\nconst failed = planned.filter(j => !have.has(norm(j.name))).map(j => j.name);\n\nconst known = new Set();\ncfg.categories.forEach(c => known.add(norm(c.label)));\ncfg.rules.forEach(r => r.labels.forEach(l => known.add(norm(l))));\ncfg.ignoreLabels.forEach(l => known.add(norm(l)));\nknown.add(norm(cfg.processedLabel));\nconst knownList = [...known];\nconst unknown = labels.filter(l => l.type === 'user').map(l => String(l.name)).filter(n => {\n  const k = norm(n);\n  if (known.has(k)) return false;\n  if (knownList.some(p => k.startsWith(p + '/') || p.startsWith(k + '/'))) return false;\n  return true;\n}).sort();\n\nconst store = $getWorkflowStaticData('global');\nconst DAY = 24 * 60 * 60 * 1000;\nconst problemKey = failed.concat(cfg.problems).map(norm).sort().join('|');\nconst unknownKey = unknown.map(norm).join('|');\nconst problemsDue = problemKey && (problemKey !== store.problemKey || Date.now() - (store.problemAt || 0) > DAY);\nconst unknownChanged = unknown.length > 0 && unknownKey !== (store.unknownKey ?? '');\nstore.unknownKey = unknownKey;\nif (!problemKey) store.problemKey = '';\nif (!(created.length || problemsDue || unknownChanged)) return [];\nif (problemsDue) { store.problemKey = problemKey; store.problemAt = Date.now(); }\n\nconst out = [];\nconst parts = [];\nif (created.length) parts.push('\u2705 Created in Gmail:\\n' + created.map(n => '  - ' + n).join('\\n'));\nif (failed.length) parts.push('\u274c Could NOT be created in Gmail:\\n' + failed.map(n => '  - ' + n).join('\\n'));\nif (cfg.problems.length) parts.push('\u26a0\ufe0f Problems in your Google Sheet:\\n' + cfg.problems.map(p => '  - ' + p).join('\\n'));\nif (unknown.length) parts.push('\u2139\ufe0f Gmail labels not used by any category or rule:\\n' + unknown.map(n => '  - ' + n).join('\\n') +\n  '\\n  Add them to Categories/Rules, or to ignore_labels in Settings.');\n\nconst bits = [];\nif (created.length) bits.push(`${created.length} created`);\nif (failed.length) bits.push(`${failed.length} failed`);\nif (cfg.problems.length) bits.push(`${cfg.problems.length} sheet problem(s)`);\nif (unknown.length) bits.push(`${unknown.length} unused label(s)`);\nif (cfg.alertEmail) out.push({ json: { alertTo: cfg.alertEmail, alertSubject: `[n8n labeler] Label sync: ${bits.join(', ')}`, alertText: parts.join('\\n\\n') } });\n\nif (problemsDue) {\n  failed.forEach(n => out.push({ json: { timestamp: now, stage: 'label_create_failed', message_id: '', from: '', subject: '', error: `Could not create Gmail label \"${n}\"` } }));\n  cfg.problems.forEach(p => out.push({ json: { timestamp: now, stage: 'config', message_id: '', from: '', subject: '', error: p } }));\n}\nreturn out;\n"
+      }
+    },
+    {
+      "id": "f430639e-733b-4f69-8e01-9c2ecabf6f64",
+      "name": "Alert or Log?",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3100,
+        -300
+      ],
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $json.stage ? 1 : 0 }}"
+      }
+    },
+    {
+      "id": "351b0436-faaf-4f5e-a40a-2d778bae45cd",
+      "name": "Send Alert (Email)",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        3340,
+        -420
+      ],
+      "parameters": {
+        "sendTo": "={{ $json.alertTo }}",
+        "subject": "={{ $json.alertSubject }}",
+        "emailType": "text",
+        "message": "={{ $json.alertText }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "id": "7b4139bb-6b7f-4a6e-883f-51d74aa26279",
+      "name": "Match Rules",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2880,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Applies sheet Rules to every email. Emails fully handled by rules skip the AI.\nconst cfg = $('Build Config').first().json;\nconst norm = s => String(s || '').trim().toLowerCase();\nconst idByName = {};\nfor (const l of $('Get Labels After Sync').all()) idByName[norm(l.json.name)] = l.json.id;\nconst idOf = n => (['starred', 'important'].includes(norm(n)) ? n.toUpperCase() : idByName[norm(n)]);\nconst parentsOf = n => { const p = String(n).split('/'); const out = []; for (let i = 1; i < p.length; i++) out.push(p.slice(0, i).join('/')); return out; };\nconst processedId = idByName[norm(cfg.processedLabel)] || null;\n\nreturn $('Emails').all().map(e => {\n  const m = e.json;\n  const from = m.from?.text || '';\n  const subject = m.subject || '';\n  const body = String(m.text || m.snippet || '').slice(0, 800);\n  const matched = cfg.rules.filter(r => {\n    const hay = r.field === 'from' ? from : r.field === 'subject' ? subject : `${from} ${subject}`;\n    return norm(hay).includes(norm(r.contains));\n  });\n  const ruleLabels = [], ruleIds = [];\n  for (const r of matched) for (const l of r.labels) {\n    const id = idOf(l);\n    if (id && !ruleIds.includes(id)) { ruleIds.push(id); ruleLabels.push(l); }\n    if (id && cfg.applyParents) for (const p of parentsOf(l)) { const pid = idByName[norm(p)]; if (pid && !ruleIds.includes(pid)) ruleIds.push(pid); }\n  }\n  const needsAI = matched.length === 0 || matched.some(r => !r.skipAi);\n  return { json: { messageId: m.id, from, subject, body, ruleLabels, ruleIds, processedId, needsAI } };\n});\n"
+      }
+    },
+    {
+      "id": "901e1eb7-5337-467b-aec8-01d50a990002",
+      "name": "Rule-Only Results",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        -100
+      ],
+      "parameters": {
+        "jsCode": "// Emails fully labeled by rules (no AI call).\nreturn $input.all().filter(i => !i.json.needsAI).map(i => {\n  const s = i.json;\n  const ids = s.processedId ? s.ruleIds.concat([s.processedId]) : s.ruleIds;\n  return { json: { messageId: s.messageId, from: s.from, subject: s.subject,\n                   labels: s.ruleLabels, labelIds: ids, source: 'rule', aiAnswer: '' } };\n});\n"
+      }
+    },
+    {
+      "id": "9aa10a38-e1ef-49a5-a715-f9cd17e5d41a",
+      "name": "Build AI Input",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3100,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// One AI prompt per email that still needs the AI.\nconst cfg = $('Build Config').first().json;\nconst norm = s => String(s || '').trim().toLowerCase();\nconst idByName = {};\nfor (const l of $('Get Labels After Sync').all()) idByName[norm(l.json.name)] = l.json.id;\n\nconst allowed = {}, catLines = [], actLines = [];\nfor (const c of cfg.categories) {\n  const id = idByName[norm(c.label)];\n  if (!id) continue;\n  const parents = [];\n  if (cfg.applyParents) { const p = c.label.split('/'); for (let k = 1; k < p.length; k++) { const pid = idByName[norm(p.slice(0, k).join('/'))]; if (pid) parents.push(pid); } }\n  allowed[norm(c.label)] = { label: c.label, id, parents };\n  catLines.push(`- ${c.label}: ${c.description}`);\n}\nfor (const a of cfg.actions) {\n  allowed[norm(a.label)] = { label: a.label, id: a.label };\n  actLines.push(`- ${a.label}: ${a.description}`);\n}\nif (Object.keys(allowed).length === 0) return [];\n// If the AI answers just 'GitHub' for 'Dev/GitHub', accept it when that short name is unique\nconst leafCount = {};\nfor (const k of Object.keys(allowed)) { const leaf = k.split('/').pop(); leafCount[leaf] = (leafCount[leaf] || 0) + 1; }\nfor (const [k, v] of Object.entries({ ...allowed })) { const leaf = k.split('/').pop(); if (k.includes('/') && leafCount[leaf] === 1 && !allowed[leaf]) allowed[leaf] = v; }\nconst limit = cfg.maxLabels > 0 ? `Use at most ${cfg.maxLabels} names.` : '';\n\nreturn $input.all().filter(i => i.json.needsAI).map(i => {\n  const s = i.json;\n  const already = s.ruleLabels.length ? `\\nAlready applied by rules (don't repeat): ${s.ruleLabels.join(', ')}\\n` : '';\n  const prompt =\n`You organise emails in Gmail.\n\nTOPIC LABELS (pick every one that clearly applies, or none). Names with \"/\" are sub-labels: use the full name, e.g. \"Dev/GitHub\":\n${catLines.join('\\n') || '(none)'}\n\nACTIONS (add only if clearly true):\n${actLines.join('\\n') || '(none)'}\n${already}\nEmail:\nFrom: ${s.from}\nSubject: ${s.subject}\nBody:\n${s.body}\n\nAnswer with ONLY a JSON array of names exactly as written above, e.g. [\"IELTS\",\"STARRED\"].\nReturn [] if nothing clearly applies. ${limit} No explanation.`;\n  return { json: { messageId: s.messageId, from: s.from, subject: s.subject, prompt, allowed,\n                   ruleLabels: s.ruleLabels, ruleIds: s.ruleIds, processedId: s.processedId, maxLabels: cfg.maxLabels } };\n});\n"
+      }
+    },
+    {
+      "id": "d35cf3ed-b261-491a-b023-e5197c4ce0b4",
+      "name": "Choose Labels (AI)",
+      "type": "@n8n/n8n-nodes-langchain.chainLlm",
+      "typeVersion": 1.7,
+      "position": [
+        3320,
+        100
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.prompt }}",
+        "batching": {
+          "batchSize": 1,
+          "delayBetweenBatches": 20000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "14b8071a-8f50-4c24-94a7-8b9036c9534c",
+      "name": "Groq Chat Model",
+      "type": "@n8n/n8n-nodes-langchain.lmChatGroq",
+      "typeVersion": 1,
+      "position": [
+        3320,
+        320
+      ],
+      "parameters": {
+        "model": "openai/gpt-oss-20b",
+        "options": {
+          "temperature": 0
+        }
+      },
+      "credentials": {
+        "groqApi": {
+          "id": "",
+          "name": "Groq account"
+        }
+      }
+    },
+    {
+      "id": "51b16d37-6f64-4a65-8b31-0c51af06a5c2",
+      "name": "Resolve Labels",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3560,
+        100
+      ],
+      "parameters": {
+        "jsCode": "// Reads the AI answer and produces:\n//   apply items (messageId + labelIds)           -> Add Labels\n//   error rows  (timestamp, stage, ... , error)  -> Errors tab\nconst src = $('Build AI Input').all();\nconst norm = s => String(s || '').trim().toLowerCase();\nconst now = new Date().toISOString();\nconst out = [];\n\n$input.all().forEach((item, i) => {\n  const s = src[i].json;\n  const errRow = (stage, error) => ({ json: { timestamp: now, stage, message_id: s.messageId, from: s.from, subject: s.subject, error } });\n\n  // AI call failed (e.g. Groq rate limit): apply rule labels only, DON'T mark processed -> retried next run\n  if (item.json.error) {\n    out.push(errRow('ai_error', String(item.json.error).slice(0, 300)));\n    if (s.ruleIds.length) out.push({ json: { messageId: s.messageId, from: s.from, subject: s.subject,\n      labels: s.ruleLabels, labelIds: s.ruleIds, source: 'rule', aiAnswer: '(AI failed)' } });\n    return;\n  }\n\n  const raw = String(item.json.text ?? '').trim();\n  let names = [];\n  const m = raw.match(/\\[[\\s\\S]*?\\]/);\n  try { names = m ? JSON.parse(m[0]) : []; } catch (e) { names = []; }\n  if (!Array.isArray(names) || (!m && raw)) names = raw.split(/[,\\n]/);\n  names = names.map(n => String(n).replace(/^[\\s\"'`*\\-\\[]+|[\\s\"'`*.\\]]+$/g, '')).filter(Boolean);\n\n  const aiIds = [], aiLabels = [], unknown = [], aiParents = [];\n  for (const n of names) {\n    if (['other', 'none'].includes(norm(n))) continue;\n    const hit = s.allowed[norm(n)];\n    if (!hit) { unknown.push(n); continue; }\n    if (!aiIds.includes(hit.id) && !s.ruleIds.includes(hit.id)) { aiIds.push(hit.id); aiLabels.push(hit.label); aiParents.push(hit.parents || []); }\n  }\n  const capIds = s.maxLabels > 0 ? aiIds.slice(0, s.maxLabels) : aiIds;\n  const capLabels = s.maxLabels > 0 ? aiLabels.slice(0, s.maxLabels) : aiLabels;\n  const parentIds = (s.maxLabels > 0 ? aiParents.slice(0, s.maxLabels) : aiParents).flat();\n  const ids = [...new Set(s.ruleIds.concat(capIds).concat(parentIds).concat(s.processedId ? [s.processedId] : []))];\n\n  out.push({ json: { messageId: s.messageId, from: s.from, subject: s.subject,\n    labels: s.ruleLabels.concat(capLabels), labelIds: ids,\n    source: s.ruleIds.length ? 'rule+ai' : 'ai', aiAnswer: raw.slice(0, 200) } });\n  if (unknown.length) out.push(errRow('unknown_label', `AI returned unknown name(s): ${unknown.join(', ')} | answer: ${raw.slice(0, 200)}`));\n});\nreturn out;\n"
+      }
+    },
+    {
+      "id": "da3efdef-71b4-4c84-85ac-a38bb5b3da43",
+      "name": "Route",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3.2,
+      "position": [
+        3780,
+        0
+      ],
+      "parameters": {
+        "mode": "expression",
+        "numberOutputs": 2,
+        "output": "={{ $json.stage ? 1 : 0 }}"
+      }
+    },
+    {
+      "id": "ba403d57-eea3-4432-b232-2a01b3d7d3aa",
+      "name": "Add Labels",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        4000,
+        -100
+      ],
+      "parameters": {
+        "operation": "addLabels",
+        "messageId": "={{ $json.messageId }}",
+        "labelIds": "={{ $json.labelIds }}"
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "7f07d4c6-f219-47d6-b899-bf1528508167",
+      "name": "Build Log Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4220,
+        -200
+      ],
+      "parameters": {
+        "jsCode": "// One row for the Log tab (label added successfully).\nconst s = $('Route').item.json;\nreturn { json: {\n  timestamp: new Date().toISOString(),\n  message_id: s.messageId,\n  from: s.from,\n  subject: s.subject,\n  labels: (s.labels || []).join(', ') || '(none)',\n  source: s.source,\n  ai_answer: s.aiAnswer || ''\n} };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "id": "b6b1fd81-3370-453b-9a4f-f6edce2a27c1",
+      "name": "Build Error Row",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// One row for the Errors tab (Gmail refused to add the labels).\nconst s = $('Route').item.json;\nconst err = $json.error;\nreturn { json: {\n  timestamp: new Date().toISOString(),\n  stage: 'add_labels',\n  message_id: s.messageId,\n  from: s.from,\n  subject: s.subject,\n  error: String(err?.message || err || 'Unknown error').slice(0, 300)\n} };\n",
+        "mode": "runOnceForEachItem"
+      }
+    },
+    {
+      "id": "44f60931-0404-48f1-91fb-89e83f351bb3",
+      "name": "Append Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4440,
+        -200
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Sheet URL').first().json.url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Log"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "cellFormat": "RAW",
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "id": "965525a5-0529-4fe5-a538-da60e2ee3131",
+      "name": "Append Errors",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        4440,
+        60
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Sheet URL').first().json.url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Errors"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "cellFormat": "RAW",
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "id": "1f02b5b5-53dc-4654-8c89-d3c85e69816c",
+      "name": "Read Log",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1100,
+        700
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Sheet URL').first().json.url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Log"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "9a338c4d-bc84-4586-953d-94232a2d59b3",
+      "name": "Read Errors",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        1320,
+        700
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "={{ $('Sheet URL').first().json.url }}"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Errors"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      },
+      "alwaysOutputData": true,
+      "executeOnce": true
+    },
+    {
+      "id": "7a5f7f64-6f4a-4692-9f0a-7d088419f5c1",
+      "name": "Build Summary",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1540,
+        700
+      ],
+      "parameters": {
+        "jsCode": "// Daily summary of the last 24 hours from the Log and Errors tabs.\nconst S = {};\nfor (const r of $('Read Settings').all().map(i => i.json)) if (r.key) S[String(r.key).trim().toLowerCase()] = String(r.value ?? '').trim();\nconst since = Date.now() - 24 * 60 * 60 * 1000;\nconst recent = name => $(name).all().map(i => i.json).filter(r => r.timestamp && Date.parse(r.timestamp) >= since);\nconst logs = recent('Read Log');\nconst errors = recent('Read Errors');\n\nconst byLabel = {}, bySource = {};\nfor (const r of logs) {\n  bySource[r.source || '?'] = (bySource[r.source || '?'] || 0) + 1;\n  for (const l of String(r.labels || '').split(',').map(s => s.trim()).filter(Boolean)) byLabel[l] = (byLabel[l] || 0) + 1;\n}\nconst byStage = {};\nfor (const e of errors) byStage[e.stage || '?'] = (byStage[e.stage || '?'] || 0) + 1;\nconst fmt = o => Object.entries(o).sort((a, b) => b[1] - a[1]).map(([k, v]) => `  - ${k}: ${v}`).join('\\n') || '  (none)';\n\nconst text =\n`Gmail labeler \u2014 last 24 hours\n\nEmails labeled: ${logs.length}\nBy source (rule = no AI used):\n${fmt(bySource)}\n\nBy label:\n${fmt(byLabel)}\n\nErrors: ${errors.length}\n${fmt(byStage)}\n${errors.length ? '\\nLatest errors:\\n' + errors.slice(-10).map(e => `  - [${e.stage}] ${e.subject || ''} \u2192 ${e.error}`).join('\\n') : ''}\n\nFull details: ${$('Sheet URL').first().json.url}`;\n\nreturn [{ json: { alertTo: S.alert_email, alertSubject: `[n8n labeler] Daily summary: ${logs.length} labeled, ${errors.length} errors`, alertText: text } }];\n"
+      }
+    },
+    {
+      "id": "1e8a7293-4eec-4b39-b3ff-3fc87e247063",
+      "name": "Send Daily Summary",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        1760,
+        700
+      ],
+      "parameters": {
+        "sendTo": "={{ $json.alertTo }}",
+        "subject": "={{ $json.alertSubject }}",
+        "emailType": "text",
+        "message": "={{ $json.alertText }}",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "id": "01626b58-c318-4249-8501-3ba1aac2a054",
+      "name": "Setup Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -340,
+        -520
+      ],
+      "parameters": {
+        "width": 560,
+        "height": 420,
+        "content": "## Gmail Auto-Labeler\nAll settings live in your Google Sheet (tabs: Settings, Categories, Rules, Log, Errors). Edit the sheet, not this workflow.\n\n1. Upload `config/gmail-labeler-config.xlsx` to Google Drive \u2192 Open with Google Sheets \u2192 File \u2192 Save as Google Sheets.\n2. Paste the sheet URL into the **Sheet URL** node (the only edit in n8n).\n3. Credentials: Gmail (8 nodes), Google Sheets (7), Groq (1).\n4. Import `workflow/error-handler.json`, PUBLISH it, then Workflow Settings \u2192 Error Workflow \u2192 pick it.\n5. Test with Manual Trigger, then Publish.\n\nRules first (no AI) \u2192 AI only for unmatched emails \u2192 Log / Errors tabs.\nFull guide: SETUP.md"
+      }
+    }
+  ],
+  "connections": {
+    "Gmail Trigger": {
+      "main": [
+        [
+          {
+            "node": "Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Manual Trigger (backlog)": {
+      "main": [
+        [
+          {
+            "node": "Get Inbox Backlog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Inbox Backlog": {
+      "main": [
+        [
+          {
+            "node": "Emails",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Emails": {
+      "main": [
+        [
+          {
+            "node": "Sheet URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Daily Summary Trigger": {
+      "main": [
+        [
+          {
+            "node": "Sheet URL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sheet URL": {
+      "main": [
+        [
+          {
+            "node": "Read Settings",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Settings": {
+      "main": [
+        [
+          {
+            "node": "Which Job?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Which Job?": {
+      "main": [
+        [
+          {
+            "node": "Read Categories",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Read Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Categories": {
+      "main": [
+        [
+          {
+            "node": "Read Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Rules": {
+      "main": [
+        [
+          {
+            "node": "Build Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Config": {
+      "main": [
+        [
+          {
+            "node": "Get Gmail Labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Gmail Labels": {
+      "main": [
+        [
+          {
+            "node": "Plan Label Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plan Label Sync": {
+      "main": [
+        [
+          {
+            "node": "Create or Skip?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create or Skip?": {
+      "main": [
+        [
+          {
+            "node": "Create Missing Label",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Get Labels After Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Missing Label": {
+      "main": [
+        [
+          {
+            "node": "Get Labels After Sync",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Labels After Sync": {
+      "main": [
+        [
+          {
+            "node": "Sync Report",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Match Rules",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Sync Report": {
+      "main": [
+        [
+          {
+            "node": "Alert or Log?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Alert or Log?": {
+      "main": [
+        [
+          {
+            "node": "Send Alert (Email)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Match Rules": {
+      "main": [
+        [
+          {
+            "node": "Rule-Only Results",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build AI Input",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Rule-Only Results": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build AI Input": {
+      "main": [
+        [
+          {
+            "node": "Choose Labels (AI)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq Chat Model": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Choose Labels (AI)",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Choose Labels (AI)": {
+      "main": [
+        [
+          {
+            "node": "Resolve Labels",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Resolve Labels": {
+      "main": [
+        [
+          {
+            "node": "Route",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Route": {
+      "main": [
+        [
+          {
+            "node": "Add Labels",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Append Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Add Labels": {
+      "main": [
+        [
+          {
+            "node": "Build Log Row",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Error Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Log Row": {
+      "main": [
+        [
+          {
+            "node": "Append Log",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Error Row": {
+      "main": [
+        [
+          {
+            "node": "Append Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Log": {
+      "main": [
+        [
+          {
+            "node": "Read Errors",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Errors": {
+      "main": [
+        [
+          {
+            "node": "Build Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Summary": {
+      "main": [
+        [
+          {
+            "node": "Send Daily Summary",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

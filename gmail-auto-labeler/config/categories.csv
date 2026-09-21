@@ -1,0 +1,16 @@
+active,label,description,kind
+TRUE,IELTS,"IELTS exam: IELTS Ready, British Council, test dates, test changes, registration, results, speaking/writing practice.",label
+TRUE,Security,"Security alerts, new sign-in notices, device verification, one-time codes, password resets (Google, Microsoft, GitHub, etc.).",label
+TRUE,Study Tracker,Automated study or habit-tracker reminders and progress check-ins.,label
+TRUE,Service Updates,"Product announcements, terms/policy changes, feature news from apps and services. Not security alerts.",label
+TRUE,Scholarship,"Scholarship opportunities, funding, grants, bursaries, stipends or financial aid for study.",label
+TRUE,Masters App,"Master's degree applications: admissions, application portals, offer letters, SOP/LOR, deadlines.",label
+TRUE,Projects,Personal or side-project discussions and collaborators. Not automated GitHub/Jira notifications.,label
+TRUE,IT,"General IT/tech: cloud accounts, hosting, software licences, tech newsletters. Not security alerts or codes.",label
+TRUE,Dev/GitHub,"GitHub notifications: pull requests, reviews, issues, CI/Actions runs, releases.",label
+TRUE,Dev/Jira,"Jira/Atlassian notifications: tickets assigned, comments, status changes, sprints.",label
+TRUE,Dev/Slack,"Slack notification emails: mentions, DMs, workspace digests.",label
+TRUE,Dev/Teams,"Microsoft Teams notification emails: missed messages, mentions, meeting chats.",label
+TRUE,LinkedIn,"LinkedIn emails: messages, recruiter InMail, job alerts, connection requests, notifications.",label
+TRUE,STARRED,"Needs MY action or reply soon: a real person asking me something, a PR review requested from me, deadlines, exam or application changes. Not newsletters, codes or automated digests.",action
+TRUE,IMPORTANT,"Official or high-stakes: exam bodies, universities, scholarships, banks, visa/immigration, account security problems, recruiters with a concrete job.",action

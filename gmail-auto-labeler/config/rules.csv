@@ -1,0 +1,12 @@
+active,field,contains,labels,skip_ai,note
+TRUE,from,notifications@github.com,Dev/GitHub,TRUE,GitHub notifications
+TRUE,from,noreply@github.com,Security,TRUE,GitHub device verification / security
+TRUE,from,jira@,Dev/Jira,TRUE,Jira Cloud sends from jira@<site>.atlassian.net
+TRUE,from,slack.com,Dev/Slack,TRUE,Slack notification emails
+TRUE,from,teams.microsoft.com,Dev/Teams,TRUE,Teams notification emails
+TRUE,from,linkedin.com,LinkedIn,FALSE,AI may add STARRED for recruiter messages
+TRUE,from,no-reply@accounts.google.com,Security,TRUE,Google security alerts
+TRUE,from,accountprotection.microsoft.com,Security,TRUE,Microsoft security codes
+TRUE,from,britishcouncil,IELTS,FALSE,AI may add STARRED / IMPORTANT
+TRUE,subject,IELTS,IELTS,FALSE,Any email with IELTS in the subject
+TRUE,from,cloudflare.com,Service Updates,TRUE,Cloudflare product/policy emails

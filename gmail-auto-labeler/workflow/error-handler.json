@@ -1,0 +1,144 @@
+{
+  "name": "Gmail Labeler \u2014 Error Handler",
+  "nodes": [
+    {
+      "id": "0d84161a-6e13-41e8-ac8f-0641f4b274ad",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {}
+    },
+    {
+      "id": "6482ba0c-5de4-4cad-af74-5e3379394f7e",
+      "name": "Crash Details",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        0
+      ],
+      "parameters": {
+        "jsCode": "// Builds the crash alert + a row for the Errors tab.\nconst x = $json.execution || {};\nconst w = $json.workflow || {};\nreturn [{ json: {\n  timestamp: new Date().toISOString(),\n  stage: 'crash',\n  message_id: String(x.id ?? ''),\n  from: String(x.lastNodeExecuted ?? ''),\n  subject: String(w.name ?? ''),\n  error: `${x.error?.message || 'Unknown error'} | ${x.url || ''}`\n} }];\n"
+      }
+    },
+    {
+      "id": "2bb42bc2-af58-4005-9c3e-33563e99db1d",
+      "name": "Send Crash Alert",
+      "type": "n8n-nodes-base.gmail",
+      "typeVersion": 2.1,
+      "position": [
+        460,
+        -100
+      ],
+      "parameters": {
+        "sendTo": "you@example.com",
+        "subject": "=[n8n labeler] \u274c Workflow crashed: {{ $json.subject }}",
+        "emailType": "text",
+        "message": "=Workflow: {{ $json.subject }}\nFailed at node: {{ $json.from }}\nError: {{ $json.error }}\nTime: {{ $json.timestamp }}\n\nOpen the link above to see the failed execution.",
+        "options": {
+          "appendAttribution": false
+        }
+      },
+      "credentials": {
+        "gmailOAuth2": {
+          "id": "",
+          "name": "Gmail account"
+        }
+      }
+    },
+    {
+      "id": "fdd70521-20dc-490b-846d-833c9a63aa6b",
+      "name": "Log Crash to Errors Tab",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [
+        460,
+        100
+      ],
+      "parameters": {
+        "authentication": "oAuth2",
+        "resource": "sheet",
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "url",
+          "value": "PASTE_YOUR_GOOGLE_SHEET_URL_HERE"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Errors"
+        },
+        "columns": {
+          "mappingMode": "autoMapInputData",
+          "value": {},
+          "matchingColumns": [],
+          "schema": []
+        },
+        "options": {
+          "cellFormat": "RAW",
+          "handlingExtraData": "ignoreIt"
+        }
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "",
+          "name": "Google Sheets account"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "18e1ac35-bf40-4968-a4e7-e9fca2b1804e",
+      "name": "Notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        -360
+      ],
+      "parameters": {
+        "width": 480,
+        "height": 220,
+        "content": "## Error handler for the Gmail labeler\nRuns automatically when a **published** run of the labeler crashes (not on manual test runs).\n\n1. Gmail credential on Send Crash Alert; Google Sheets credential + your sheet URL on Log Crash.\n2. Set your email in Send Crash Alert \u2192 To, then PUBLISH this workflow.\n3. In the labeler: \u22ef \u2192 Settings \u2192 Error Workflow \u2192 pick this workflow."
+      }
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Crash Details",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Crash Details": {
+      "main": [
+        [
+          {
+            "node": "Send Crash Alert",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Log Crash to Errors Tab",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

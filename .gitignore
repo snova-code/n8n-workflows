@@ -1,0 +1,13 @@
+# Never commit secrets or local exports
+.env
+*.env
+credentials*.json
+*_decrypted*.json
+n8n_data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+~$*.xlsx
