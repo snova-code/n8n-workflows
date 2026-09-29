@@ -1,0 +1,99 @@
+{
+  "name": "Backup Error Alerts",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🚨 Backup Error Alerts\nCatches crashes of any workflow that selects this as its **Error workflow**.\n1. Set `TELEGRAM_CHAT_ID` in *Build crash message*.\n2. Select your Telegram credential in *Send crash alert*.\n3. Save. No need to publish.\n\nOnly runs for automatic (scheduled) executions, never for manual test runs.",
+        "height": 300,
+        "width": 420,
+        "color": 3
+      },
+      "id": "23d13fe5-c133-4e6b-bc65-5624cd192845",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -60,
+        -340
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "1120ea04-112b-4465-bb0c-9790b78f5fe7",
+      "name": "Error Trigger",
+      "type": "n8n-nodes-base.errorTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ================== EDIT THIS VALUE ==================\nconst TELEGRAM_CHAT_ID = 'YOUR_TELEGRAM_CHAT_ID';\n// =====================================================\nconst d = $input.first().json;\nconst ex = d.execution || {};\nconst wf = d.workflow || {};\n\n// The backup workflow already sent its own alert before this node ran → don't send a duplicate.\nif (ex.lastNodeExecuted === 'Mark execution as failed') return [];\n\nconst esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nlet msg = (ex.error && (ex.error.message || ex.error.description)) ||\n          (d.trigger && d.trigger.error && d.trigger.error.message) || 'No error message';\nif (msg.length > 1500) msg = msg.slice(0, 1500) + '…';\n\nconst when = $now.setZone('Asia/Kathmandu').toFormat('yyyy-MM-dd HH:mm');\nconst lines = [\n  `🚨 <b>Workflow crashed</b>`,\n  `📄 Workflow: <b>${esc(wf.name || 'unknown')}</b> (${esc(wf.id || '?')})`,\n  `🗓 ${when} (Asia/Kathmandu)`,\n  `🧩 Last node: <b>${esc(ex.lastNodeExecuted || (d.trigger ? 'trigger' : 'unknown'))}</b>`,\n  `💬 Error: ${esc(msg)}`,\n  ...(ex.url ? [`🔎 Execution: <a href=\"${esc(ex.url)}\">open in n8n</a>`] : []),\n];\nreturn [{ json: { chatId: TELEGRAM_CHAT_ID, text: lines.join('\\n') } }];\n"
+      },
+      "id": "762918eb-0418-46e7-a3c3-fe07b2ee8098",
+      "name": "Build crash message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "1cd56e01-3856-4c42-89ab-9bfa5eb437ba",
+      "name": "Send crash alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        480,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    }
+  ],
+  "connections": {
+    "Error Trigger": {
+      "main": [
+        [
+          {
+            "node": "Build crash message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build crash message": {
+      "main": [
+        [
+          {
+            "node": "Send crash alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kathmandu"
+  },
+  "meta": {}
+}

@@ -2,9 +2,14 @@
 
 Labels every new Gmail email automatically. **Sender rules** handle predictable mail for free, a **free AI model** (Groq) handles the rest, and **all settings live in a Google Sheet** you can edit from your phone. Every labeled email and every error is logged back to that sheet.
 
-![n8n](https://img.shields.io/badge/n8n-2.x-EA4B71) ![AI](https://img.shields.io/badge/AI-Groq%20free%20tier-F55036) ![Cost](https://img.shields.io/badge/cost-%240-brightgreen)
+<img src="images/canvas.png" alt="gmail labeler workflow canvas" width="380">
+<br/>
+<img src="images/sheet-rules.png" alt="google sheets containing rules" width="380">
+<br/>
+<img src="images/gmail-labels.png" alt="List of labels for gmail" width="380">
+<br/>
+<img src="images/error-batch-size.png" alt="Size of batch to process" width="380">
 
-<!-- Add a screenshot of the workflow canvas here: images/canvas.png -->
 
 ## What it does
 
