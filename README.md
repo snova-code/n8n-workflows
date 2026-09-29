@@ -9,8 +9,9 @@ Every workflow lives in its own folder with the same layout, so once you've set 
 | Workflow | What it does | Apps | AI | Guide |
 |---|---|---|---|---|
 | [Gmail Auto-Labeler](gmail-auto-labeler/) | Labels every new email automatically. Sender rules first (free), AI only for the rest. All settings in a Google Sheet; every success and error logged. | Gmail, Google Sheets, Groq | Yes (free tier) | [SETUP.md](gmail-auto-labeler/SETUP.md) |
+| [Nightly n8n → GitHub Backup](github-backup) | Backs up every n8n workflow to a private GitHub repo each night as one commit. Dated snapshots, a `latest/` folder for restoring, secret scan, Telegram alerts. | GitHub, Telegram, n8n API | No | [SETUP.md](github-backup/SETUP.md) |
 
-*More coming. Next up: nightly backup of all n8n workflows to GitHub.*
+*More coming.*
 
 ## Folder layout
 
@@ -18,6 +19,7 @@ Every workflow lives in its own folder with the same layout, so once you've set 
 n8n-workflows/
 ├── README.md                     ← you are here (index of all workflows)
 ├── _template/                    ← copy this to start a new workflow folder
+├── github-backup/                ← nightly backup of all your workflows
 ├── gmail-auto-labeler/
 │   ├── README.md                 ← what it does, at a glance
 │   ├── SETUP.md                  ← full step-by-step setup guide

@@ -1,0 +1,657 @@
+{
+  "name": "Backup n8n workflows to GitHub",
+  "nodes": [
+    {
+      "parameters": {
+        "content": "## 🔐 Backup n8n workflows → GitHub\n**Setup (details in SETUP.md):**\n1. **Config** node: set `githubOwner`, `telegramChatId` (and optional `personalProjectId`).\n2. Credentials: **n8n API** → *Get all workflows*; **GitHub API** → the 6 GitHub nodes; **Telegram API** → the 2 Telegram nodes.\n3. Keep `testMode: true`, click **Execute workflow**, check `test/` in GitHub + Telegram.\n4. Set `testMode: false`, run once more, then **Publish**.\n5. Settings → Error workflow → *Backup Error Alerts*.\n\nOnly changes `backups/<today>/` and `latest/`. Never deletes anything in n8n.",
+        "height": 420,
+        "width": 520,
+        "color": 5
+      },
+      "id": "66144692-70d6-457b-9fa2-090b4ebedc62",
+      "name": "Setup notes",
+      "type": "n8n-nodes-base.stickyNote",
+      "typeVersion": 1,
+      "position": [
+        -80,
+        -520
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "days",
+              "triggerAtHour": 2
+            }
+          ]
+        }
+      },
+      "id": "f76b9ba5-c5a1-460f-abba-f6f840e532c5",
+      "name": "Every night at 02:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "parameters": {},
+      "id": "b17e0865-3066-4565-8971-8e52b789796c",
+      "name": "Run manually",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// ================== EDIT THESE VALUES ==================\nconst SETTINGS = {\n  testMode: true,                 // true = back up only `testLimit` workflows into the test/ folder\n  testLimit: 2,\n  githubOwner: 'YOUR_GITHUB_USERNAME',\n  githubRepo: 'n8n-backups',\n  githubBranch: 'main',\n  n8nBaseUrl: 'https://n8n.snova.com',\n  telegramChatId: 'YOUR_TELEGRAM_CHAT_ID',\n  personalProjectId: '',          // optional, see SETUP.md: only back up workflows owned by this project\n  secretScanIgnoreWorkflowIds: [], // workflow IDs to skip in the secret scan (confirmed false positives only)\n  maxDropPercent: 50,             // safety stop if the workflow count falls by more than this vs latest/\n};\n// ============== NOTHING TO EDIT BELOW THIS LINE ==============\nconst placeholders = ['YOUR_GITHUB_USERNAME', 'YOUR_TELEGRAM_CHAT_ID'];\nfor (const [k, v] of Object.entries(SETTINGS)) {\n  if (placeholders.includes(v)) throw new Error(`Config: please set \"${k}\" in the Config node.`);\n}\nconst timezone = 'Asia/Kathmandu';\nconst now = $now.setZone(timezone);\n\nlet triggerType = 'manual';\ntry {\n  if ($('Every night at 02:00').isExecuted) triggerType = 'scheduled';\n} catch (e) {}\n\nconst base = SETTINGS.n8nBaseUrl.replace(/\\/+$/, '');\nconst root = SETTINGS.testMode ? 'test/' : '';\nconst date = now.toFormat('yyyy-MM-dd');\n\nreturn [{\n  json: {\n    ...SETTINGS,\n    n8nBaseUrl: base,\n    timezone,\n    triggerType,\n    date,\n    time: now.toFormat('HH:mm'),\n    startedAtMs: Date.now(),\n    snapshotDir: `${root}backups/${date}`,\n    latestDir: `${root}latest`,\n    executionUrl: `${base}/workflow/${$workflow.id}/executions/${$execution.id}`,\n  },\n}];\n"
+      },
+      "id": "fbdd2f8c-9575-4ada-a5ed-900b7f0ee6d9",
+      "name": "Config",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        240,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.githubOwner }}/{{ $('Config').first().json.githubRepo }}/branches/{{ $('Config').first().json.githubBranch }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "1bc179d2-b182-41d9-b6c6-bf6e1ce94f04",
+      "name": "Get branch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        480,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.githubOwner }}/{{ $('Config').first().json.githubRepo }}/git/trees/{{ $json.commit.commit.tree.sha }}?recursive=1",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "551a6ca0-0217-44cd-912a-05a6c9a70b26",
+      "name": "Get existing files",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        720,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "resource": "workflow",
+        "operation": "getAll",
+        "returnAll": true,
+        "filters": {
+          "excludePinnedData": true
+        }
+      },
+      "id": "8d7a6a53-bb0d-4ecd-afe7-332fdb580b40",
+      "name": "Get all workflows",
+      "type": "n8n-nodes-base.n8n",
+      "typeVersion": 1,
+      "position": [
+        960,
+        100
+      ],
+      "alwaysOutputData": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Turns the workflows returned by the n8n API into clean, secret-free files.\nconst cfg = $('Config').first().json;\n\nlet wfs = $input.all().map(i => i.json).filter(w => w && typeof w.id === 'string' && Array.isArray(w.nodes));\nconst visibleCount = wfs.length;\n\nif (cfg.personalProjectId) {\n  wfs = wfs.filter(w => (w.shared || []).some(s => s.projectId === cfg.personalProjectId && s.role === 'workflow:owner'));\n}\nwfs.sort((a, b) => String(a.name).localeCompare(String(b.name)) || a.id.localeCompare(b.id));\nif (cfg.testMode) wfs = wfs.slice(0, cfg.testLimit);\n\nif (wfs.length === 0) {\n  throw new Error(`No workflows to back up (the n8n API returned ${visibleCount}). Stopped so that latest/ is not emptied. Check the n8n API credential and personalProjectId in Config.`);\n}\n\n// ---- readable, safe file names ----\nfunction safeName(name) {\n  let s = String(name || '')\n    .normalize('NFKD').replace(/[\\u0300-\\u036f]/g, '')\n    .replace(/[^A-Za-z0-9._-]+/g, '-')\n    .replace(/-{2,}/g, '-')\n    .replace(/^[-._]+|[-._]+$/g, '');\n  s = s.slice(0, 80).replace(/[-._]+$/g, '');\n  return s || 'untitled';\n}\n\n// ---- secret scan (values are never printed, only where they are) ----\nconst PATTERNS = [\n  ['GitHub token', /\\b(gh[pousr]_[A-Za-z0-9]{36,}|github_pat_[A-Za-z0-9_]{22,})/],\n  ['OpenAI/Anthropic-style key', /\\bsk-(?:proj-|ant-)?[A-Za-z0-9_-]{20,}/],\n  ['Stripe live key', /\\b[sr]k_live_[A-Za-z0-9]{20,}/],\n  ['AWS access key', /\\bAKIA[0-9A-Z]{16}\\b/],\n  ['Google API key', /\\bAIza[0-9A-Za-z_-]{35}/],\n  ['Slack token', /\\bxox[abposr]-[A-Za-z0-9-]{10,}/],\n  ['Telegram bot token', /\\b\\d{8,10}:AA[A-Za-z0-9_-]{33}\\b/],\n  ['Private key', new RegExp('-----BEGIN ' + '[A-Z ]*PRIVATE KEY-----')],\n  ['Hard-coded Bearer token', /Bearer\\s+[A-Za-z0-9._~+\\/-]{24,}=*/],\n  ['JWT', /\\beyJ[A-Za-z0-9_-]{10,}\\.eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}/],\n];\nconst ignore = new Set(cfg.secretScanIgnoreWorkflowIds || []);\nconst findings = [];\nfunction scan(wfName, where, value) {\n  const text = typeof value === 'string' ? value : JSON.stringify(value ?? '');\n  for (const [label, re] of PATTERNS) if (re.test(text)) findings.push(`\"${wfName}\" › ${where} (${label})`);\n}\n\nconst files = [];\nconst manifestRows = [];\n\nfor (const w of wfs) {\n  const fileName = `${safeName(w.name)}__${safeName(w.id)}.json`;\n\n  // Keep what is needed to restore; drop pinned data, static data and sharing info.\n  const clean = {\n    id: w.id,\n    name: w.name,\n    active: w.active,\n    isArchived: w.isArchived,\n    versionId: w.versionId,\n    activeVersionId: w.activeVersionId ?? null,\n    createdAt: w.createdAt,\n    updatedAt: w.updatedAt,\n    tags: (w.tags || []).map(t => ({ id: t.id, name: t.name })),\n    nodes: w.nodes,\n    connections: w.connections,\n    ...(Array.isArray(w.nodeGroups) && w.nodeGroups.length ? { nodeGroups: w.nodeGroups } : {}),\n    settings: w.settings || {},\n    meta: w.meta || null,\n    pinData: {},\n  };\n\n  if (!ignore.has(w.id)) {\n    for (const n of clean.nodes) scan(w.name, `node \"${n.name}\"`, { p: n.parameters, notes: n.notes });\n    scan(w.name, 'workflow settings/meta', { s: clean.settings, m: clean.meta });\n  }\n\n  files.push({ kind: 'workflow', fileName, content: JSON.stringify(clean, null, 2) + '\\n' });\n  manifestRows.push({\n    id: w.id,\n    name: w.name,\n    file: fileName,\n    active: !!w.active,\n    published: !!w.active,\n    activeVersionId: w.activeVersionId ?? null,\n    isArchived: !!w.isArchived,\n    createdAt: w.createdAt,\n    updatedAt: w.updatedAt,\n    folder: null,\n    tags: (w.tags || []).map(t => t.name),\n    nodeCount: w.nodes.length,\n  });\n}\n\nif (findings.length) {\n  const shown = findings.slice(0, 8).join('; ');\n  const more = findings.length > 8 ? ` …and ${findings.length - 8} more` : '';\n  throw new Error(`Secret scan stopped the backup. Possible secrets typed directly into: ${shown}${more}. Move them into n8n credentials and run again. Nothing was uploaded.`);\n}\n\nconst manifest = {\n  backupDate: cfg.date,\n  backupTime: cfg.time,\n  timezone: cfg.timezone,\n  trigger: cfg.triggerType,\n  testMode: cfg.testMode,\n  source: cfg.n8nBaseUrl,\n  workflowCount: manifestRows.length,\n  archivedCount: manifestRows.filter(r => r.isArchived).length,\n  notes: [\n    'folder is always null: the n8n public API does not return the folder of a workflow.',\n    'Pinned data and static data are removed. Credentials are references (id + name) only, never secrets.',\n  ],\n  workflows: manifestRows,\n};\nfiles.push({ kind: 'manifest', fileName: '_manifest.json', content: JSON.stringify(manifest, null, 2) + '\\n' });\n\nreturn files.map(f => ({ json: f }));\n"
+      },
+      "id": "b7e0a640-4236-429d-92c1-23345e7641fc",
+      "name": "Prepare files",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1200,
+        100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.githubOwner }}/{{ $('Config').first().json.githubRepo }}/git/blobs",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {
+          "batching": {
+            "batch": {
+              "batchSize": 1,
+              "batchInterval": 1000
+            }
+          }
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ content: $json.content, encoding: 'utf-8' }) }}"
+      },
+      "id": "299b2a96-0555-4c86-b768-e7ed9addbdbd",
+      "name": "Upload files (blobs)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1440,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Checks the uploads and builds ONE tree that only touches today's folder and latest/.\nconst cfg = $('Config').first().json;\nconst files = $('Prepare files').all().map(i => i.json);\nconst blobs = $input.all().map(i => i.json);\n\nfunction errText(j) {\n  const e = j && j.error;\n  if (!e) return 'no SHA returned';\n  if (typeof e === 'string') return e;\n  return [e.message, e.description].filter(Boolean).join(' – ') || JSON.stringify(e).slice(0, 300);\n}\n\nif (blobs.length !== files.length) {\n  throw new Error(`Upload check failed: expected ${files.length} uploaded files, got ${blobs.length}.`);\n}\nconst bad = [];\nblobs.forEach((b, i) => {\n  if (!b || typeof b.sha !== 'string' || !/^[0-9a-f]{40}$/.test(b.sha)) bad.push(`${files[i].fileName}: ${errText(b)}`);\n});\nif (bad.length) throw new Error(`Uploading ${bad.length} file(s) to GitHub failed. First error – ${bad[0]}`);\n\nconst branch = $('Get branch').first().json;\nconst parentSha = branch.commit.sha;\nconst baseTree = branch.commit.commit.tree.sha;\n\nconst existing = $('Get existing files').first().json;\nif (existing.truncated) {\n  throw new Error('GitHub returned an incomplete file list because the repo is very large. Delete old snapshots (see SETUP.md → Cleaning old snapshots) and run again.');\n}\n\nconst snap = cfg.snapshotDir + '/';\nconst latest = cfg.latestDir + '/';\nconst inScope = p => p.startsWith(snap) || p.startsWith(latest);\n\nconst entries = [];\nconst wanted = new Set();\nfiles.forEach((f, i) => {\n  for (const dir of [snap, latest]) {\n    const path = dir + f.fileName;\n    wanted.add(path);\n    entries.push({ path, mode: '100644', type: 'blob', sha: blobs[i].sha });\n  }\n});\n\nconst existingPaths = (existing.tree || []).filter(e => e.type === 'blob').map(e => e.path);\nconst toDelete = existingPaths.filter(p => inScope(p) && !wanted.has(p));\nfor (const path of toDelete) entries.push({ path, mode: '100644', type: 'blob', sha: null });\n\n// Safety: never touch anything outside today's folder and latest/.\nfor (const e of entries) {\n  if (!inScope(e.path)) throw new Error(`Safety stop: the workflow tried to change \"${e.path}\", which is outside ${snap} and ${latest}.`);\n}\n\nconst workflowCount = files.filter(f => f.kind === 'workflow').length;\nconst latestCount = existingPaths.filter(p => p.startsWith(latest) && p.endsWith('.json') && !p.endsWith('/_manifest.json')).length;\nconst minAllowed = Math.ceil(latestCount * (1 - cfg.maxDropPercent / 100));\nif (!cfg.testMode && latestCount >= 4 && workflowCount < minAllowed) {\n  throw new Error(`Safety stop: only ${workflowCount} workflows found, but latest/ has ${latestCount}. That is a drop of more than ${cfg.maxDropPercent}%. If this is expected, raise maxDropPercent in Config and run again.`);\n}\n\nconst archivedCount = JSON.parse(files.find(f => f.kind === 'manifest').content).archivedCount;\nconst message = `${cfg.testMode ? '[TEST] ' : ''}Backup ${cfg.date} ${cfg.time} (${cfg.triggerType}) – ${workflowCount} workflows`;\n\nreturn [{\n  json: {\n    base_tree: baseTree,\n    tree: entries,\n    parentSha,\n    message,\n    workflowCount,\n    archivedCount,\n    removedCount: toDelete.length,\n  },\n}];\n"
+      },
+      "id": "ec956f85-d254-47d6-a160-182bd4ccbaf8",
+      "name": "Build new tree",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        100
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.githubOwner }}/{{ $('Config').first().json.githubRepo }}/git/trees",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ base_tree: $json.base_tree, tree: $json.tree }) }}"
+      },
+      "id": "6c63cd0f-0cc5-4abe-bd46-3b4b71b32393",
+      "name": "Create tree",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1920,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.githubOwner }}/{{ $('Config').first().json.githubRepo }}/git/commits",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ message: $('Build new tree').first().json.message, tree: $json.sha, parents: [ $('Build new tree').first().json.parentSha ] }) }}"
+      },
+      "id": "60418205-1e77-49dd-9c6b-033e2f8ea630",
+      "name": "Create commit",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2160,
+        100
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://api.github.com/repos/{{ $('Config').first().json.githubOwner }}/{{ $('Config').first().json.githubRepo }}/git/refs/heads/{{ $('Config').first().json.githubBranch }}",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "githubApi",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Accept",
+              "value": "application/vnd.github+json"
+            },
+            {
+              "name": "X-GitHub-Api-Version",
+              "value": "2022-11-28"
+            }
+          ]
+        },
+        "options": {},
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ sha: $('Create commit').first().json.sha, force: false }) }}"
+      },
+      "id": "475e12a8-1a40-43cc-b823-562bfa463f03",
+      "name": "Update branch",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        2400,
+        100
+      ],
+      "retryOnFail": false,
+      "maxTries": 3,
+      "waitBetweenTries": 3000,
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cfg = $('Config').first().json;\nconst info = $('Build new tree').first().json;\nconst commit = $('Create commit').first().json;\n\nconst esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst secs = Math.max(0, Math.round((Date.now() - cfg.startedAtMs) / 1000));\nconst duration = secs >= 60 ? `${Math.floor(secs / 60)}m ${secs % 60}s` : `${secs}s`;\nconst commitUrl = commit.html_url || `https://github.com/${cfg.githubOwner}/${cfg.githubRepo}/commit/${commit.sha}`;\n\nconst lines = [\n  `✅ <b>n8n backup succeeded</b>${cfg.testMode ? ' 🧪 <b>TEST MODE</b>' : ''}`,\n  `🗓 ${esc(cfg.date)} ${esc(cfg.time)} (${esc(cfg.timezone)})`,\n  `⚙️ Trigger: ${esc(cfg.triggerType)}`,\n  `📦 Workflows: ${info.workflowCount}${info.archivedCount ? ` (${info.archivedCount} archived)` : ''}`,\n  `📁 Folder: ${esc(cfg.snapshotDir)}/`,\n  ...(info.removedCount ? [`🧹 Removed from today/latest: ${info.removedCount} old file(s)`] : []),\n  `🔗 Commit: <a href=\"${esc(commitUrl)}\">${esc(String(commit.sha).slice(0, 7))}</a>`,\n  `⏱ Duration: ${duration}`,\n];\nreturn [{ json: { chatId: cfg.telegramChatId, text: lines.join('\\n') } }];\n"
+      },
+      "id": "c2da1dd4-5564-42e6-8f34-bf11b3846593",
+      "name": "Build success message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "1948e6cc-8175-4db9-91b3-6355b797b15c",
+      "name": "Send success alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        2880,
+        0
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "jsCode": "// Runs when any step sends its error to the red \"error\" output.\nlet cfg = {};\ntry { cfg = $('Config').first().json; } catch (e) {}\n\nlet step = 'unknown step';\ntry { step = $prevNode.name; } catch (e) {}\n\nconst j = ($input.first() && $input.first().json) || {};\nlet msg;\nconst e = j.error;\nif (!e) msg = JSON.stringify(j).slice(0, 500);\nelse if (typeof e === 'string') msg = e;\nelse msg = [e.message, e.description].filter(Boolean).join(' – ') || JSON.stringify(e).slice(0, 500);\nif (msg.length > 1500) msg = msg.slice(0, 1500) + '…';\n\nconst esc = s => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\nconst url = cfg.executionUrl || '';\nconst lines = [\n  `❌ <b>n8n backup FAILED</b>${cfg.testMode ? ' 🧪 <b>TEST MODE</b>' : ''}`,\n  `🗓 ${esc(cfg.date)} ${esc(cfg.time)} (${esc(cfg.timezone)})`,\n  `⚙️ Trigger: ${esc(cfg.triggerType)}`,\n  `🧩 Failed step: <b>${esc(step)}</b>`,\n  `💬 Error: ${esc(msg)}`,\n  ...(url ? [`🔎 Execution: <a href=\"${esc(url)}\">open in n8n</a>`] : []),\n  `ℹ️ The GitHub branch was not changed.`,\n];\nreturn [{\n  json: {\n    chatId: cfg.telegramChatId,\n    text: lines.join('\\n'),\n    plain: `Backup failed at \"${step}\": ${msg}`,\n  },\n}];\n"
+      },
+      "id": "1cfaa702-03b9-4770-9bf7-b9424bafcab0",
+      "name": "Build failure message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1680,
+        440
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "message",
+        "operation": "sendMessage",
+        "chatId": "={{ $json.chatId }}",
+        "text": "={{ $json.text }}",
+        "additionalFields": {
+          "appendAttribution": false,
+          "parse_mode": "HTML",
+          "disable_web_page_preview": true
+        }
+      },
+      "id": "806942dd-e93e-46b8-a27d-4a3b0f64d7c5",
+      "name": "Send failure alert",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1920,
+        440
+      ],
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 5000
+    },
+    {
+      "parameters": {
+        "errorMessage": "={{ $('Build failure message').first().json.plain }}"
+      },
+      "id": "c146a00c-45f0-4251-bf08-d4b12570db5d",
+      "name": "Mark execution as failed",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [
+        2160,
+        440
+      ]
+    }
+  ],
+  "connections": {
+    "Every night at 02:00": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Run manually": {
+      "main": [
+        [
+          {
+            "node": "Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Config": {
+      "main": [
+        [
+          {
+            "node": "Get branch",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get branch": {
+      "main": [
+        [
+          {
+            "node": "Get existing files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get existing files": {
+      "main": [
+        [
+          {
+            "node": "Get all workflows",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get all workflows": {
+      "main": [
+        [
+          {
+            "node": "Prepare files",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare files": {
+      "main": [
+        [
+          {
+            "node": "Upload files (blobs)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Upload files (blobs)": {
+      "main": [
+        [
+          {
+            "node": "Build new tree",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build new tree": {
+      "main": [
+        [
+          {
+            "node": "Create tree",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create tree": {
+      "main": [
+        [
+          {
+            "node": "Create commit",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create commit": {
+      "main": [
+        [
+          {
+            "node": "Update branch",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update branch": {
+      "main": [
+        [
+          {
+            "node": "Build success message",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build failure message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build success message": {
+      "main": [
+        [
+          {
+            "node": "Send success alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build failure message": {
+      "main": [
+        [
+          {
+            "node": "Send failure alert",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send failure alert": {
+      "main": [
+        [
+          {
+            "node": "Mark execution as failed",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "Asia/Kathmandu",
+    "saveManualExecutions": true,
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "meta": {}
+}
